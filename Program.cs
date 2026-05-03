@@ -143,15 +143,17 @@ app.MapGet("/health", () =>
 .WithName("HealthCheck")
 .WithOpenApi();
 
-app.MapGet("/version", () =>
+app.MapGet("/version", (IConfiguration configuration) =>
 {
+    var appName = configuration["App:Name"];
+    var appVersion = configuration["App:Version"];
+
     return Results.Ok(new
     {
-        application = "IsLabApp",
-        version = "1.0.0"
+        application = appName,
+        version = appVersion
     });
-})
-.WithName("GetVersion")
+}).WithName("GetVersion")
 .WithOpenApi();
 
 var summaries = new[]
