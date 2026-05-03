@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  DOTNET_VERSION: "8.0.x"
+  IMAGE_NAME: ghcr.io/${{ github.repository }}
+
+jobs:
+  build-test-and-publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore dependencies
+        run: dotnet restore ./IsLabApp.csproj
+
+      - name: Build application
+        run: dotnet build ./IsLabApp.csproj --configuration Release --no-restore
+
+      - name: Run tests
+        run: dotnet test --configuration Release --no-build
+        continue-on-error: true
+
+      - name: Login to GHCR
+        if: github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Prepare Docker tags
+        if: github.event_name == 'push'
+        id: vars
+        run: |
+          SHORT_SHA=${GITHUB_SHA::7}
+          IMAGE_NAME_LOWER=$(echo "${IMAGE_NAME}" | tr '[:upper:]' '[:lower:]')
+
+          echo "short_sha=$SHORT_SHA" >> "$GITHUB_OUTPUT"
+          echo "image_name=$IMAGE_NAME_LOWER" >> "$GITHUB_OUTPUT"
+
+      - name: Build Docker image
+        if: github.event_name == 'push'
+        run: |
+          docker build \
+            -t ${{ steps.vars.outputs.image_name }}:latest \
+            -t ${{ steps.vars.outputs.image_name }}:${{ steps.vars.outputs.short_sha }} \
+            .
+
+      - name: Push Docker image
+        if: github.event_name == 'push'
+        run: |
+          docker push ${{ steps.vars.outputs.image_name }}:latest
+          docker push ${{ steps.vars.outputs.image_name }}:${{ steps.vars.outputs.short_sha }}
