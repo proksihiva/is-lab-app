@@ -1,0 +1,43 @@
+services:
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: islab-mssql
+    env_file:
+      - .env
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD}"
+    volumes:
+      - mssql_data:/var/opt/mssql
+    networks:
+      - islab_net
+    restart: unless-stopped
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ghcr.io/proksihiva/is-lab-app:latest
+    container_name: islab-app
+    env_file:
+      - .env
+    environment:
+      ASPNETCORE_URLS: "http://+:8080"
+      ConnectionStrings__Mssql: "Server=mssql,1433;Database=IsLabDb;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True;"
+      App__Name: "${APP_NAME}"
+      App__Version: "${APP_VERSION}"
+    ports:
+      - "127.0.0.1:5000:8080"
+    depends_on:
+      - mssql
+    networks:
+      - islab_net
+    restart: unless-stopped
+
+volumes:
+  mssql_data:
+
+networks:
+  islab_net:
+    driver: bridge
+
